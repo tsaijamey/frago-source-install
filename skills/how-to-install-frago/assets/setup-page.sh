@@ -64,7 +64,21 @@ done
 ok_claude=0;    has claude   && ok_claude=1
 ok_codex=0;     has codex    && ok_codex=1
 ok_opencode=0;  has opencode && ok_opencode=1
-ok_codebuddy=0; { has codebuddy || [ -x "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy" ]; } && ok_codebuddy=1
+# WorkBuddy 的命令行藏在桌面应用包里,PATH 上通常没有它,所以除了按命令找,还要看应用包。
+# 包内的相对位置两个平台同形,差别只在应用装在哪。macOS 那条是实测的;Linux 那几条按桌面
+# 应用的常规落点写,没有实机验证过。
+ok_codebuddy=0
+has codebuddy && ok_codebuddy=1
+if [ $ok_codebuddy = 0 ]; then
+  if [ "$os" = darwin ]; then
+    cb_roots="/Applications/WorkBuddy.app/Contents/Resources"
+  else
+    cb_roots="/opt/WorkBuddy/resources /usr/lib/workbuddy/resources /usr/share/workbuddy/resources $HOME/.local/share/WorkBuddy/resources"
+  fi
+  for r in $cb_roots; do
+    [ -x "$r/app.asar.unpacked/cli/bin/codebuddy" ] && { ok_codebuddy=1; break; }
+  done
+fi
 
 # ── 依赖 ──
 ok_git=0;    has git  && ok_git=1

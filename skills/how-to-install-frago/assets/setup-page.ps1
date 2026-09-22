@@ -16,6 +16,27 @@ $template = Join-Path $here "frago-setup-intro.html"
 
 function Has($name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 
+# WorkBuddy 的命令行藏在桌面应用包里,PATH 上通常没有它,所以除了按命令找,还要看应用包。
+# 包内的相对位置与 macOS 同形,差别只在应用装在哪。这几条按 Windows 桌面应用的常规落点
+# 写,没有实机验证过——探不到时跟补这几条之前一样报「没装」,不会更糟。
+function HasCodebuddy {
+  if (Has "codebuddy") { return $true }
+  # 环境变量缺一个就让整份脚本报错不值得,所以先筛掉空的再拼路径。
+  $bases = @($env:LOCALAPPDATA, $env:ProgramFiles) | Where-Object { $_ }
+  foreach ($b in $bases) {
+    $roots = @(
+      "$b\Programs\WorkBuddy\resources\app.asar.unpacked\cli\bin",
+      "$b\WorkBuddy\resources\app.asar.unpacked\cli\bin"
+    )
+    foreach ($r in $roots) {
+      foreach ($n in @("codebuddy.cmd", "codebuddy.exe", "codebuddy")) {
+        if (Test-Path "$r\$n") { return $true }
+      }
+    }
+  }
+  return $false
+}
+
 # ── 谁在跑这个脚本:顺着父进程链往上找 agent 命令行 ──
 $running = ""
 $p = $PID
@@ -36,7 +57,7 @@ $agents = @(
   @{ id="claude";    name="Claude Code"; ok=(Has "claude");    how="官方安装脚本(PowerShell)"; how_en="official install script (PowerShell)"; manual=$false }
   @{ id="codex";     name="codex";       ok=(Has "codex");     how="需要 Node.js,自己装好后再跑一次这份 skill 就能接上"; how_en="needs Node.js; install it yourself, then run this skill again"; manual=$true }
   @{ id="opencode";  name="opencode";    ok=(Has "opencode");  how="官方安装脚本(PowerShell)"; how_en="official install script (PowerShell)"; manual=$false }
-  @{ id="codebuddy"; name="WorkBuddy";   ok=(Has "codebuddy"); how="WorkBuddy 是桌面应用,从官网下载"; how_en="WorkBuddy is a desktop app; download it from its website"; manual=$true }
+  @{ id="codebuddy"; name="WorkBuddy";   ok=(HasCodebuddy);    how="WorkBuddy 是桌面应用,从官网下载"; how_en="WorkBuddy is a desktop app; download it from its website"; manual=$true }
 )
 
 # ── 依赖 ──
