@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "This skill should be used when a user wants to install or configure frago from source on their machine (macOS/Linux/Windows) using the agent CLI they already have — Claude Code, codex or opencode. The agent runs a probe script that detects which agent CLI is running the skill and what the machine already has, opens a generated local page that collects every decision up front — which CLIs to hook up, what may be installed, whether to set up LightAgent — then clones the repository, builds it with uv, publishes it as the system frago by running the server once, verifies only what frago cannot repair by itself, fetches recipes on demand, backs the working directory up to a private GitHub repository, and closes with a welcome page that has the machine prove what changed. The user never types a frago command themselves, and never pastes an API key into the chat. Trigger phrases: \"install frago\", \"安装 frago\", \"配置 frago\", \"frago 源码安装\", \"set up frago\", \"frago installation\", \"deploy frago hooks\", \"从源码安装 frago\", \"配置 frago 模型\", \"frago profile\", \"配方没有 api key\", \"frago 备份\", \"frago-working-dir\".",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "homepage": "https://frago.ai",
     "keywords": [
       "frago",
