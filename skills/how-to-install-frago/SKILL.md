@@ -40,8 +40,11 @@ frago 拒绝从自己的源码检出运行。除 `server` 外的每条命令都�
 bash <skill 目录>/assets/setup-page.sh            # 探测这台机器,生成页面,打印生成后的路径
 ```
 ```powershell
-powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 ```
+
+`-NoProfile` 不可省:用户的 PowerShell 配置文件会往 stdout 写东西(代理开关之类的
+提示行),跟脚本的输出混在一起,`--json` 那条路上拿到的就不是一段能解析的 JSON。
 
 (加 `--json` 只打印探测结果不生成页面,排查时才用;正常安装不需要,探测结果已经嵌在页面里,也不用贴给用户看。)
 
@@ -57,7 +60,7 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 
 ### 2. 打开生成的页面,等用户的决定
 
-交给用户的系统默认浏览器:macOS `open <路径>`,Linux `xdg-open <路径>`,Windows `start <路径>`。这一步发生在 frago 装好之前,没有配方运行器、也还没有 agent 专用的浏览器,只能走系统自己的打开方式。页面按视口自适应,矮于 900 像素会自动收紧间距。
+交给用户的系统默认浏览器:macOS `open <路径>`,Linux `xdg-open <路径>`,Windows `Start-Process <路径>`(`start` 是 cmd 的内建命令,agent 从 PowerShell 非交互调用时不一定认)。这一步发生在 frago 装好之前,没有配方运行器、也还没有 agent 专用的浏览器,只能走系统自己的打开方式。页面按视口自适应,矮于 900 像素会自动收紧间距。
 
 **打开之后告诉用户去哪看。** 这些命令成功了也没有回显,窗口可能落在别的窗口后面(全屏会议、另一块屏)。说一句「页面开在你的浏览器里,标题是『frago — 装之前先问你几件事』,没看到就切过去」,然后等。用户说没弹出来,把路径给他,请他自己打开。
 
@@ -94,6 +97,12 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 - macOS:`xcode-select --install` 保证有 git;uv 用 `curl -LsSf https://astral.sh/uv/install.sh | sh`。
 - Linux:apt/dnf/pacman 装 git、curl;uv 同上。
 - Windows:`winget install Git.Git`(兜底:git-scm.com 的安装包);uv 用 `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`。
+  **装完必须把 PATH 重读一遍再往下走。** winget 和 uv 的安装器改的是用户级 PATH,
+  而 agent 通常在同一个 shell 里接着跑——那个进程手里还是旧的 PATH,敲 `git`、`uv`、
+  `tmux` 一律"不是内部或外部命令",看着像装失败,实际只是没刷新(winget 自己会打一句
+  `Path environment variable modified; restart your shell`,很容易被当成提示忽略过去)。
+  每装完一样,跑一次:
+  `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")`
 - POSIX 上 uv 落在 `~/.local/bin`,当前 shell 可能还没有它,先 `source ~/.local/bin/env` 或直接用绝对路径。
 
 **另外几样,各管一种能力。** 缺了哪一样 frago 都照常装完、照常启动,这正是要在开场页上逐条列给用户勾的原因:它们坏的时候是静默的,一次坏一种能力,离「安装成功」已经过去很久。**只装贴回来的配置里 `install` 列出的;`skip` 里的一律不装,装完时明说那项能力用不了。**这张表是给你自己看的,用户已经在页面上看过同样的话。
@@ -103,10 +112,27 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 | 派活(`frago agent`)、主代理、`frago remote`;也是替用户过 codex 信任门的工具 | **tmux** | worker 永远起不来,全部报错就一句 `Error: tmux not found`。没有它,第 9 步建 profile 等于白建 |
 | 浏览器自动化(`frago browser`) | **不用装**——frago 自己取一份 Chrome for Testing(见下) | 没取到时才退回找用户装的 Chromium 系浏览器,一个都没有就把每个都列成未找到 |
 | 录标签页、虚拟桌面(`frago desktop`) | **ffmpeg** | 录制调用直接失败,别的都正常。虚拟桌面还要 tmux 和一个可用的浏览器 |
-| **Linux 上**跑配方 | **bubblewrap**(`bwrap`) | 配方被拒绝运行,而不是不隔离地跑。macOS 用系统自带沙箱,不需要额外装 |
+| **Linux 上**跑配方 | **bubblewrap**(`bwrap`) | 配方被拒绝运行,而不是不隔离地跑。macOS 用系统自带沙箱,不需要额外装;Windows 上没有合用的隔离办法,配方照常跑但服务会打一条说明的警告——那不是失败 |
 | 创建私有仓库备份(第 11 步) | **gh** | 建不了私有仓库、推不上去。页面上勾了「创建私有仓库」会连带勾上它 |
 
-从哪来:macOS 上 tmux 和 ffmpeg 走 Homebrew。Linux 上 tmux、ffmpeg、bubblewrap 走发行版的包管理器。Windows 上 ffmpeg 走 winget,但 tmux 没有原生版本——那上面派活得进 WSL。浏览器三个平台都不用装。
+从哪来:macOS 上 tmux 和 ffmpeg 走 Homebrew。Linux 上 tmux、ffmpeg、bubblewrap 走发行版的包管理器。
+Windows 上 ffmpeg 与 tmux 都走 winget:`winget install ffmpeg`、`winget install arndawg.tmux-windows`。
+浏览器三个平台都不用装。
+
+**Windows 上的 tmux 要多说三句,因为它跟另外两个平台不是同一个东西。**
+
+上游 tmux 只出 POSIX 版,Windows 上那份(`arndawg.tmux-windows`)是第三方移植版,用 ConPTY
+做伪终端。它与上游有几处行为差异,frago 已经在驱动层逐条适配,装上就能用,不需要用户做
+任何设置:建会话不带 `-c`、面板默认 shell 钉到 Git Bash、读屏显式按 UTF-8 解码、判活对
+残缺进程名降级、非 ASCII 文本改由文件载体投喂。
+
+所以 Windows 上装 tmux 有一个隐含前提:**Git for Windows 必须在**。面板里跑的是它带的
+Git Bash——frago 拼的启动命令是 POSIX 语法,`cmd.exe` 一条都不认。git 本来就是必装项,
+这里只是说明它的另一重用途:别让用户"只装个 git 的绿色版"。
+
+**不要再让 Windows 用户进 WSL 派活。** 早先这份指南写的是"Windows 没有原生 tmux,派活得
+进 WSL",那条已经不成立;照它做等于让用户为了用 frago 先装一个 Linux 发行版,而他的代码、
+他的 agent 命令行、他的登录态全在 Windows 这边。
 
 **浏览器由 frago 自己带,不要让用户装。** 取一份 Chrome for Testing 放进 `~/.frago/tools/chrome-for-testing/`,frago 会自动挑中它。这是 Google 官方为自动化场景发布的 Chrome 构建,压缩包不到 200 MB,解压后放着就能用——不进 `/Applications`、不要管理员权限、不注册成系统默认浏览器,也不会跟用户日常在用的那个抢 profile。
 
@@ -160,7 +186,7 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 
 **按 `connect` 收口。** 服务启动时会给本机装了的 claude、codex、opencode 全部注册,不看用户勾没勾(第 3 步新装的也算在内)。`running` 那一个用户取消不了,一定在 `connect` 里。用户在页面上点掉的那个,启动后把它那份注册删掉:Claude Code 是 `~/.claude/settings.json` 里 hooks 段带 `frago-core --engine` 的条目,codex 是 `~/.codex/hooks.json`,opencode 是 `~/.config/opencode/plugin/` 下的 frago 文件。并告诉用户:下次 `frago server restart` 会再加回来,那时再删一次——这是产品目前的限制,不是他勾错了。codebuddy 不用做任何事:它只在 frago 派活起它时才挂钩子,用户自己开的 WorkBuddy 会话本来就不受影响。
 
-**替用户过 codex 的信任门(勾了 codex 才做)。** codex 不直接运行新装的钩子,要先过目并信任它的确切定义,信任记录写在 `~/.codex/config.toml` 的 `[hooks.state]` 里,每个钩子一条哈希。这道门归 agent,不归用户:有 tmux 就在 tmux 里起一次 `codex`(不带 `--dangerously-bypass-hook-trust`,那个参数会绕过这道门、什么都不写),看到「Hooks need review」选 Trust all,退出,再看 `config.toml` 里有没有多出四条 `trusted_hash`。这条路走的是 codex 自己的流程,哈希一定对;不要自己算哈希写进去——它是对 codex 内部结构序列化后算的,拼不出来。没有 tmux 才退回让用户自己进一次 codex 选 Trust all。*本 skill 写下这一段时,tmux 驱动这一步还没实际跑过;跑不通就明说,退回让用户点。*
+**替用户过 codex 的信任门(勾了 codex 才做)。** codex 不直接运行新装的钩子,要先过目并信任它的确切定义,信任记录写在 `~/.codex/config.toml` 的 `[hooks.state]` 里,每个钩子一条哈希。这道门归 agent,不归用户:有 tmux 就在 tmux 里起一次 `codex`(不带 `--dangerously-bypass-hook-trust`,那个参数会绕过这道门、什么都不写),看到「Hooks need review」选 Trust all,退出,再看 `config.toml` 里有没有多出四条 `trusted_hash`。这条路走的是 codex 自己的流程,哈希一定对;不要自己算哈希写进去——它是对 codex 内部结构序列化后算的,拼不出来。没有 tmux 才退回让用户自己进一次 codex 选 Trust all——Windows 上现在也有 tmux(第 3 步),所以这条退路只剩「用户明说不装 tmux」这一种情形。*tmux 驱动这一步还没实际跑过;跑不通就明说,退回让用户点。*
 
 ### 7. 验收:只验 frago 自己修不好的
 
@@ -168,7 +194,7 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 
 要验的是这几件:
 
-- **`~/.local/bin` 在不在永久 PATH 里。** 在一个全新的终端里跑 `frago --version`。这件事 frago 修不了。
+- **`~/.local/bin` 在不在永久 PATH 里。** 在一个全新的终端里跑 `frago --version`。这件事 frago 修不了。Windows 上这个目录是 `%USERPROFILE%\.local\bin`,uv 的安装器会写进用户级 PATH,但**当前这个 shell 看不到**——要么开一个新终端验,要么先按第 3 步那条把 PATH 重读一遍。
 - **`~/.claude/settings.json` 里有没有 frago 的条目。** 查「有没有」,不查「几条、超时多少」。二进制跑不起来时同步会整个跳过、一条都不注册,那是真正的失败。
 - **codex 的信任(勾了 codex 才有)。** 第 6 步替用户过了门之后,`~/.codex/config.toml` 里应有四条 `trusted_hash`。没有就是没过成,回去重做或交给用户点。
 - **端到端。** 让用户重启 Claude Code。新会话开头出现 frago 的知识注入,就证明整条链通了:PATH 找得到 frago、设置指向二进制、二进制路由了事件、命令行应答了。这一条过了,前面那些逐项清点本来就不必要。
@@ -264,9 +290,13 @@ frago recipe run frago_welcome
 - **`frago: command not found`** —— `~/.local/bin` 没进永久 PATH。改 shell 配置文件,不要拿绝对路径凑合。
 - **codex 里什么都没注入** —— 钩子没被信任,第 6 步那一下没过成。在 tmux 里再走一遍,或让用户进 codex 选 Trust all。
 - **派不出活,worker 起不来** —— 先看有没有 tmux(第 3 步);再看是不是 root 装的且机位选的是 claude(见第 4 步)。多建几个 profile 对这两种都没用。
+- **Windows 上刚装完的东西"不是内部或外部命令"** —— PATH 没刷新,不是没装上。按第 3 步那条从注册表重读一次,别去重装。
+- **Windows 上会话起不来,报 `never reached ready signal`** —— 按这个顺序查三件事:tmux 装没装(`tmux -V`);Git for Windows 在不在(`C:\Program Files\Git\bin\bash.exe`,面板要靠它跑 POSIX 启动命令);以及 agent 那边是不是停在一屏要人按键的确认上——报错里带的 pane 末屏会把那一屏原样抄出来,先读它再猜别的。
+- **Windows 上 agent 连不上网,报的却像鉴权失败** —— 这台机器要走代理才能出网的话,代理变量得在**起服务的那个进程**环境里。frago 会把它们按会话带进 tmux 面板,所以改完代理重启服务即可;但如果服务本身没有代理变量,面板里的 agent 就是直连,报出来的是 401/403,看着像没登录。
 - **`frago browser check` 把每个浏览器都列成未找到** —— Chrome for Testing 没取成,机器上也没有别的 Chromium 系浏览器。重取一次(第 3 步);`Chrome` 那一行显示可用不算数,稳定版走不了扩展这条路。
 - **录制失败,别的都正常** —— 缺 ffmpeg(第 3 步)。
 - **Linux 上配方还没跑就被拒绝** —— 缺 bubblewrap(第 3 步)。这是故意的拒绝,不是崩溃。
+- **Windows 上日志里有一句「配方不在隔离下运行」** —— 那是说明,不是错误:Windows 上没有既便宜又管用的隔离办法(低完整性只挡写、AppContainer 副作用比这次运行活得久、沙盒起一次要几秒),所以本机个人使用照常跑。配方读得到这台机器上的东西,这一点要让用户知道。
 - **8093 端口被占** —— 已经有一个 frago 服务在跑,`frago server status` 能确认。不要再起第二个。
 - **配方报缺 api_key** —— 那是第 10 步,不是装坏了。
 - **`gh auth login` 开不出浏览器**(无头或远程机器)—— 选它给出的设备码方式,在任何别的设备上打开那个网址。码有时效,过期就重来,别重复用。
