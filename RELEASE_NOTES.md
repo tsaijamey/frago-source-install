@@ -1,3 +1,17 @@
+## Unreleased — Windows asks where to install
+
+Windows no longer gets a single path. The probe reports how far WSL has got — not installed, installed without a distro, or with one — and the page asks a single question: install into native Windows, or into WSL. With no WSL the page only offers native and says so; with a distro already present it offers both and still recommends native, noting that installing into WSL is equally reasonable once it is there.
+
+Delegation stops being an optional capability. tmux is now a locked, required item on every platform alongside git and uv, because delegating work is what the tool is for, not a preference to opt into. On native Windows that means the winget tmux port (`arndawg.tmux-windows`), which in turn makes Git Bash a hard requirement — tmux panels use it as their default shell, and it arrives with Git for Windows.
+
+The hand-over configuration gains `windows_target` (`native` / `wsl`) on Windows only; macOS and Linux do not carry the field.
+
+### Known limitations
+
+- **The Windows branch still has not been exercised on a real Windows machine.** The WSL three-state check (`wsl.exe -l -q`) is a paper design, and `setup-page.ps1` was already unverified before this change; the new Git Bash check shares that status. A handover todo tracks running the probe on both a Windows machine with a distro and one without.
+
+---
+
 ## What's in this release
 
 v0.6.0 moves every decision to the front. Before touching anything, the agent probes the machine with a script shipped in the skill, generates a page from that probe, and lets the user decide once — which CLIs to hook up, what may be installed, whether to set up LightAgent, what happens after. The user pastes one block of configuration back into the chat, and the install runs through without asking again.

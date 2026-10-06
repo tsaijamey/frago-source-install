@@ -34,7 +34,7 @@ frago 拒绝从自己的源码检出运行。除 `server` 外的每条命令都�
 
 ### 1. 跑探测脚本,生成开场页
 
-**不要自己探测,跑 skill 带的脚本。** 它在本文件旁边的 `assets/` 里,macOS / Linux 用 `setup-page.sh`,Windows 用 `setup-page.ps1`。**skill 目录就是本文件所在的目录**——加载这份 skill 时给你的那个路径;没给的话,找一下 `assets/setup-page.sh` 在哪(装成插件时多半在 `~/.claude/plugins/` 下)。只需要跑这一条:
+**不要自己探测,跑 skill 带的脚本。** 它在本文件旁边的 `assets/` 里,macOS / Linux 用 `setup-page.sh`,原生 Windows 用 `setup-page.ps1`——**判断依据是 agent 自己此刻在什么系统上,不是「用户是不是 Windows 用户」**:在 WSL 里跑的,系统是 Linux,用 `setup-page.sh`,脚本会把「在 WSL 里」这一标记一起带出来。**skill 目录就是本文件所在的目录**——加载这份 skill 时给你的那个路径;没给的话,找一下 `assets/setup-page.sh` 在哪(装成插件时多半在 `~/.claude/plugins/` 下)。只需要跑这一条:
 
 ```bash
 bash <skill 目录>/assets/setup-page.sh            # 探测这台机器,生成页面,打印生成后的路径
@@ -49,7 +49,8 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 
 - **认出是谁在跑它。** 顺着父进程链找 claude / codex / opencode / codebuddy,找不到再看 Claude Code 的环境变量。这个结果决定第 2 屏哪一个是「正在用」——那一个必须接上,页面上锁死不让取消,因为 frago 正是通过它在给用户装。
 - **查四个 agent 命令行在不在**:claude、codex、opencode、codebuddy(含 WorkBuddy 桌面应用内嵌的那份,固定路径在脚本里)。没装的也进页面,用户可以勾「装上并接入」;agent 装不了的(WorkBuddy 只有桌面版,Linux 上 codex 要 Node.js)页面会说明「自己装好后再跑一次 skill」。
-- **查依赖在不在**:git、uv、tmux、ffmpeg、gh,Linux 再加 bubblewrap。缺的每一项配上这台系统上的装法,写成人看得懂的一句。浏览器不在这张单子里——frago 自己带一份,不用用户装(见第 3 步)。
+- **查依赖在不在**:git、uv、tmux(必装)、ffmpeg、gh,Linux 再加 bubblewrap。缺的每一项配上这台系统上的装法,写成人看得懂的一句。浏览器不在这张单子里——frago 自己带一份,不用用户装(见第 3 步)。
+- **在 Windows 上还查 WSL 走到哪一步**(没装 / 没发行版 / 有发行版)。它决定第 3 步给不给「装原生还是装 WSL」这个选择:没有 WSL 就只推原生,已有 WSL 则两条路都摆出来。
 
 然后把探测结果嵌进模板 `frago-setup-intro.html`,生成到临时目录,打印路径。模板本身没有任何机器状态,直接打开只显示一句「要由 skill 生成后打开」;**不要改 skill 目录里的模板**。
 
@@ -69,6 +70,7 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 {
   "frago_setup": 2,
   "os": "darwin",
+  "windows_target": "native",              // 仅 Windows 上有:装原生还是装 WSL(native / wsl);macOS、Linux 上没有这个字段
   "lang": "zh",                            // 用户在页面上用的语言(zh / en),之后跟他说话用这个
   "running": "claude",                     // 脚本认出的、正在跑这份 skill 的 agent
   "connect": ["claude", "codex"],          // 已装且勾了接上的命令行(running 一定在里面)
@@ -89,14 +91,17 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 
 ### 3. 按用户的决定装依赖,和他勾了的 agent 命令行
 
-**装 frago 本体只需要 git 和 uv。** 缺了的在页面上是锁死的必装项,直接装。Python 不用预装,uv 会按 `requires-python>=3.13` 拉一个托管版本。所有锁定依赖都有预编译轮子,任何系统都不需要编译器。
+**装 frago 只需要 git、uv 和 tmux:前两个是本体,第三个是派活。** 派活(`frago agent`、主代理、`frago remote`)是这个工具的核心用法,不是可选项,所以 tmux 和 git、uv 一样是页面上锁死的必装项,直接装——不要问用户「要不要派活」,他装 frago 就是要的。Python 不用预装,uv 会按 `requires-python>=3.13` 拉一个托管版本。所有锁定依赖都有预编译轮子,任何系统都不需要编译器。
 
 - macOS:`xcode-select --install` 保证有 git;uv 用 `curl -LsSf https://astral.sh/uv/install.sh | sh`。
 - Linux:apt/dnf/pacman 装 git、curl;uv 同上。
-- Windows:`winget install Git.Git`(兜底:git-scm.com 的安装包);uv 用 `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`。
+- Windows:按贴回来的配置里 `windows_target` 定装在哪一边,再往下——
+  - **没有 WSL**:装在原生 Windows,这是首选,页面上不摆第二个选项。
+  - **已有 WSL**:原生和 WSL 两条路都摆给用户选。选 WSL 的,后续命令经 `wsl.exe` 在 WSL 里跑(或请用户自己进 WSL 再跑一遍本 skill);选原生的,按下面这条走。
+  装原生 Windows 这一边:`winget install Git.Git`(兜底:git-scm.com 的安装包;它顺带装上 Git Bash,不要漏——tmux 面板靠它当默认壳);uv 用 `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`。
 - POSIX 上 uv 落在 `~/.local/bin`,当前 shell 可能还没有它,先 `source ~/.local/bin/env` 或直接用绝对路径。
 
-**另外几样,各管一种能力。** 缺了哪一样 frago 都照常装完、照常启动,这正是要在开场页上逐条列给用户勾的原因:它们坏的时候是静默的,一次坏一种能力,离「安装成功」已经过去很久。**只装贴回来的配置里 `install` 列出的;`skip` 里的一律不装,装完时明说那项能力用不了。**这张表是给你自己看的,用户已经在页面上看过同样的话。
+**再往下几样,各管一种能力。** 它们跟 tmux 不同——tmux 是锁死的必装项,这几样缺了 frago 照常装完、照常启动,这正是要在开场页上逐条列给用户勾的原因:它们坏的时候是静默的,一次坏一种能力,离「安装成功」已经过去很久。**只装贴回来的配置里 `install` 列出的;`skip` 里的一律不装,装完时明说那项能力用不了。**这张表是给你自己看的,用户已经在页面上看过同样的话。
 
 | 干什么要它 | 是什么 | 缺了会怎样 |
 |---|---|---|
@@ -106,7 +111,7 @@ powershell -ExecutionPolicy Bypass -File <skill 目录>\assets\setup-page.ps1
 | **Linux 上**跑配方 | **bubblewrap**(`bwrap`) | 配方被拒绝运行,而不是不隔离地跑。macOS 用系统自带沙箱,不需要额外装 |
 | 创建私有仓库备份(第 11 步) | **gh** | 建不了私有仓库、推不上去。页面上勾了「创建私有仓库」会连带勾上它 |
 
-从哪来:macOS 上 tmux 和 ffmpeg 走 Homebrew。Linux 上 tmux、ffmpeg、bubblewrap 走发行版的包管理器。Windows 上 ffmpeg 走 winget,但 tmux 没有原生版本——那上面派活得进 WSL。浏览器三个平台都不用装。
+从哪来:macOS 上 tmux 和 ffmpeg 走 Homebrew。Linux 上 tmux、ffmpeg、bubblewrap 走发行版的包管理器。Windows 原生这一边,tmux 走 winget 上的社区移植版 `arndawg.tmux-windows`,ffmpeg、gh 走 winget;另需两样机器上的条件——Git Bash(随 Git for Windows 来,上面的 git 装完就有)和系统级 UTF-8(代码页 65001,不开的话中文提示词进 tmux 面板会乱码或被当面拒绝)。浏览器三个平台都不用装。
 
 **浏览器由 frago 自己带,不要让用户装。** 取一份 Chrome for Testing 放进 `~/.frago/tools/chrome-for-testing/`,frago 会自动挑中它。这是 Google 官方为自动化场景发布的 Chrome 构建,压缩包不到 200 MB,解压后放着就能用——不进 `/Applications`、不要管理员权限、不注册成系统默认浏览器,也不会跟用户日常在用的那个抢 profile。
 
@@ -264,6 +269,8 @@ frago recipe run frago_welcome
 - **`frago: command not found`** —— `~/.local/bin` 没进永久 PATH。改 shell 配置文件,不要拿绝对路径凑合。
 - **codex 里什么都没注入** —— 钩子没被信任,第 6 步那一下没过成。在 tmux 里再走一遍,或让用户进 codex 选 Trust all。
 - **派不出活,worker 起不来** —— 先看有没有 tmux(第 3 步);再看是不是 root 装的且机位选的是 claude(见第 4 步)。多建几个 profile 对这两种都没用。
+- **Windows 上 tmux 会话起了、消息发不出去** —— 面板的默认壳落到了 cmd.exe,而 frago 发的是 POSIX 语法命令,cmd 一条都不认。面板要 Git Bash 当默认壳(随 Git for Windows 来);装上 Git Bash 再试。
+- **Windows 上中文提示词进 tmux 变乱码或被拒** —— 系统级 UTF-8 没开(代码页不是 65001)。切到 65001 后重启系统再试;纯英文不受影响。
 - **`frago browser check` 把每个浏览器都列成未找到** —— Chrome for Testing 没取成,机器上也没有别的 Chromium 系浏览器。重取一次(第 3 步);`Chrome` 那一行显示可用不算数,稳定版走不了扩展这条路。
 - **录制失败,别的都正常** —— 缺 ffmpeg(第 3 步)。
 - **Linux 上配方还没跑就被拒绝** —— 缺 bubblewrap(第 3 步)。这是故意的拒绝,不是崩溃。

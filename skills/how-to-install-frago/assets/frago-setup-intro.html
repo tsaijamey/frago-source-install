@@ -397,6 +397,7 @@ zh: {
     git:    { what:"取源码" },
     uv:     { what:"建 Python 环境、把 frago 装成系统命令" },
     tmux:   { what:"派活:让 frago 在后台起 agent 替你干活",        lose:"派活、主代理、远程接入都不能用" },
+    gitbash:{ what:"派活要的 POSIX shell:tmux 面板拿它当默认壳,随 Git for Windows 一起来" },
     browser:{ what:"浏览器自动化:替你操作网页。frago 自己带一份,不用你装",  lose:"浏览器自动化不能用" },
     ffmpeg: { what:"录屏:录一个标签页或虚拟桌面",                  lose:"录制功能不能用,别的都正常" },
     gh:     { what:"私有仓库:把你的 frago 数据备份到你名下一个只有你能看的仓库", lose:"不能建私有仓库备份" },
@@ -432,6 +433,13 @@ zh: {
     nav:"要装什么", title:"即将装到你机器上的软件,和你要的服务", hint:"没勾的一律不装",
     lead:"每一样只管一种能力,<b>缺了 frago 照样能用</b>。没装的勾了 agent 才装,不勾就明说那项用不了。",
     sectTools:"frago 之外的软件", sectAfter:"装完之后,你要的服务",
+    sectWhere:"装在哪一边",
+    whereLead:"这台机器上有 WSL。frago 可以装在原生 Windows 里,也可以装在 WSL 里,两条路都能用:装原生最直接;你已经有 WSL,装进 WSL 也顺理成章。",
+    whereLeadNo:"frago 将装在原生 Windows 里,这是这台机器的首选。若想装进 WSL,得先装好 WSL 再重来一次。",
+    optNative:"原生 Windows", optNativeWhat:"直接用这台 Windows;派活靠 tmux 的 winget 移植版,另需 Git Bash 与系统级 UTF-8",
+    optWsl:"WSL", optWslWhat:"装进你的 WSL 发行版,按 Linux 那套走;之后每条命令都进 WSL 执行",
+    rec:"推荐",
+    inWsl:"这份 skill 正跑在 WSL 里,frago 会装进这个 WSL 发行版。若想装到原生 Windows,请到 Windows 一侧的终端里重跑一次。",
     have:"已有", required:"必需", missing:"没装",
     howSub: how => `怎么装:${how}`,
     loseSub: (lose, how) => `不装的话:${lose}` + (how ? ` · 怎么装:${how}` : ""),
@@ -458,6 +466,7 @@ zh: {
     lead: a => `下面就是 ${a} 会拿到的全部授权。确认后把配置复制、贴回对话,它从那一刻开始干活,不再问你。`,
     leadKey: `<b>钥匙不进对话</b>:先把它存成本机文件,配置里只写文件在哪;agent 建好 profile 就把文件删掉。`,
     connect:"接上", none:"一个都不接", notConnect:"不接",
+    where:"装在哪",
     newAgents:"装上并接入", newAgentsNote:"装完要你登录一次",
     software:"要装的软件", noSoftware:"不装任何额外的软件",
     skip:"不装",
@@ -483,6 +492,7 @@ en: {
     git:    { what:"Fetch the source" },
     uv:     { what:"Build the Python environment and install frago as a command" },
     tmux:   { what:"Delegation: lets frago run agents in the background for you", lose:"no delegation, no primary agent, no remote access" },
+    gitbash:{ what:"The POSIX shell delegation needs: tmux panels use it as their default shell; comes with Git for Windows" },
     browser:{ what:"Browser automation: drives web pages for you. frago brings its own browser — nothing to install", lose:"no browser automation" },
     ffmpeg: { what:"Recording: capture a tab or the virtual desktop",                lose:"recording is unavailable; everything else works" },
     gh:     { what:"Private repository: back up your frago data to a repository only you can see", lose:"no private-repository backup" },
@@ -518,6 +528,13 @@ en: {
     nav:"What to install", title:"Software about to go on your machine, and the services you want", hint:"Nothing unticked gets installed",
     lead:"Each serves one capability, and <b>frago works without any of them</b>. Missing ones are installed only if you tick them; otherwise the agent says what stays unavailable.",
     sectTools:"Software besides frago", sectAfter:"After the install",
+    sectWhere:"Where it installs",
+    whereLead:"This machine has WSL. frago can go into native Windows or inside WSL — both work: native is the direct path, and since you already have WSL, installing there is equally reasonable.",
+    whereLeadNo:"frago will go into native Windows, the first choice on this machine. To install inside WSL instead, set up WSL first and run this again.",
+    optNative:"Native Windows", optNativeWhat:"Runs on this Windows directly; delegation uses the winget tmux port, and it needs Git Bash and system UTF-8",
+    optWsl:"WSL", optWslWhat:"Installs into your WSL distro on the Linux path; every later command runs inside WSL",
+    rec:"recommended",
+    inWsl:"This skill is running inside WSL, so frago installs into this WSL distro. To install into native Windows instead, run it again from a Windows-side terminal.",
     have:"present", required:"required", missing:"missing",
     howSub: how => `How: ${how}`,
     loseSub: (lose, how) => `Without it: ${lose}` + (how ? ` · How: ${how}` : ""),
@@ -544,6 +561,7 @@ en: {
     lead: a => `This is everything ${a} will be allowed to do. If it looks right, copy the configuration and paste it back into the chat. From that moment it works through the install without asking again.`,
     leadKey: `<b>The key never enters the chat</b>: save it to a local file first; the configuration only says where that file is, and the agent deletes it once the profile is created.`,
     connect:"Hook up", none:"none", notConnect:"Leave alone",
+    where:"Installs into",
     newAgents:"Install and hook up", newAgentsNote:"you sign in afterwards",
     software:"Software to install", noSoftware:"nothing extra",
     skip:"Not installing",
@@ -585,6 +603,7 @@ if (!PROBE) {
 }
 
 const IS_WIN = PROBE.os === "windows";
+const IN_WSL = PROBE.os === "linux" && PROBE.wsl === "distro";
 const PATHS = IS_WIN
   ? { src:"%USERPROFILE%\\frago", bin:"%USERPROFILE%\\.local\\bin\\frago", data:"%USERPROFILE%\\.frago", dl:"%USERPROFILE%\\Downloads\\frago-setup-key.json" }
   : { src:"~/frago", bin:"~/.local/bin/frago", data:"~/.frago", dl:"~/Downloads/frago-setup-key.json" };
@@ -605,6 +624,7 @@ const CHOICE = {
   install: new Set(missingRequired.map(t => t.id)),
   keep_server: true,
   backup: false,
+  windows_target: "native",   // 只在原生 Windows 上出现:"native" 或 "wsl"
   lightagent: null,           // null = 还没决定;false = 先不配;对象 = 填了
 };
 const hasLA = () => CHOICE.lightagent && typeof CHOICE.lightagent === "object";
@@ -654,6 +674,26 @@ const steps = [
   { nav: () => T.s3.nav, title: () => T.s3.title, hint: () => T.s3.hint,
     html() {
       const s = T.s3;
+      // Windows 上多一个岔口:装原生还是装 WSL。有 WSL 才给两个选项,没有就只推原生。
+      // agent 自己跑在 WSL 里时(PROBE.os 是 linux)不出现这个岔口,给一句说明代替。
+      const whereBlock = () => {
+        if (!IS_WIN) {
+          return IN_WSL ? `<p class="note" data-rise="2">${s.inWsl}</p>` : "";
+        }
+        if (PROBE.wsl !== "distro") {
+          return `
+            <p class="sect block" data-rise="2">${s.sectWhere}</p>
+            <p class="note" data-rise="2">${s.whereLeadNo}</p>
+            <div class="rows" data-rise="2">${pickRow({ key:"windows_target:native", on:true, lock:true, name:s.optNative, what:s.optNativeWhat, tag:s.rec, tagCls:"good" })}</div>`;
+        }
+        return `
+          <p class="sect block" data-rise="2">${s.sectWhere}</p>
+          <p class="note" data-rise="2">${s.whereLead}</p>
+          <div class="rows" data-rise="2">
+            ${pickRow({ key:"windows_target:native", on: CHOICE.windows_target === "native", name:s.optNative, what:s.optNativeWhat, tag:s.rec, tagCls:"good" })}
+            ${pickRow({ key:"windows_target:wsl", on: CHOICE.windows_target === "wsl", name:s.optWsl, what:s.optWslWhat })}
+          </div>`;
+      };
       // 软件永远逐行列出,版式不随机器变;装没装只改每一行的状态。
       const rows = TOOLS.map(t => {
         const info = infoOf(t), how = esc(howOf(t));
@@ -664,6 +704,7 @@ const steps = [
       }).join("");
       return `
       <p class="lead" data-rise="2">${s.lead}</p>
+      ${whereBlock()}
       <p class="sect" data-rise="3">${s.sectTools}</p>
       <div class="rows" data-rise="3">${rows}</div>
       <p class="sect block" data-rise="4">${s.sectAfter}</p>
@@ -728,6 +769,7 @@ const steps = [
       return `
       <p class="lead" data-rise="2">${s.lead(esc(runName()))} ${withKey ? s.leadKey : ""}</p>
       <div class="summary" data-rise="3">
+        ${IS_WIN ? sum(s.where, CHOICE.windows_target === "wsl" ? esc(T.s3.optWsl) : esc(T.s3.optNative)) : ""}
         ${sum(s.connect, connect.length ? esc(connect.join(sep)) : s.none, !connect.length)}
         ${notConnect.length ? sum(s.notConnect, esc(notConnect.join(sep)), true) : ""}
         ${newAgents.length ? sum(s.newAgents, esc(newAgents.join(sep)) + ` <small>· ${s.newAgentsNote}</small>`) : ""}
@@ -758,6 +800,7 @@ function configText() {
   const payload = {
     frago_setup: 2,
     os: PROBE.os,
+    ...(IS_WIN ? { windows_target: CHOICE.windows_target } : {}),
     lang: LANG,
     running: PROBE.running || null,
     connect: found.filter(a => CHOICE.connect.has(a.id)).map(a => a.id),
@@ -847,6 +890,7 @@ function pick(key) {
   if (kind === "connect") flip(CHOICE.connect, id);
   else if (kind === "agent") flip(CHOICE.install_agents, id);
   else if (kind === "install") flip(CHOICE.install, id);
+  else if (kind === "windows_target") CHOICE.windows_target = id;
   else if (key === "keep_server") CHOICE.keep_server = !CHOICE.keep_server;
   else if (key === "backup") {
     CHOICE.backup = !CHOICE.backup;
@@ -863,6 +907,7 @@ function isOn(key) {
   if (kind === "connect") return CHOICE.connect.has(id);
   if (kind === "agent") return CHOICE.install_agents.has(id);
   if (kind === "install") return CHOICE.install.has(id);
+  if (kind === "windows_target") return CHOICE.windows_target === id;
   if (key === "keep_server") return CHOICE.keep_server;
   if (key === "backup") return CHOICE.backup;
   return false;

@@ -34,6 +34,15 @@ case "$(uname -s)" in
   *)      os=other ;;
 esac
 
+# 跑在 WSL 里吗。WSL 里就是 Linux,装法与 Linux 一套;这个标记只用来告诉页面「这台机器
+# 的 Windows 一侧另有可选项」,不改变装法。三个探针任一命中即算,见 frago 会话层同一判法。
+wsl="none"
+if [ "$os" = linux ]; then
+  if [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ] || grep -qi microsoft /proc/version 2>/dev/null; then
+    wsl="distro"
+  fi
+fi
+
 # Linux 上用哪个包管理器,决定「怎么装」那句话
 pm=""
 if [ "$os" = linux ]; then
@@ -133,10 +142,10 @@ tool() { # id name ok required how how_en
   printf '{"id":"%s","name":"%s","ok":%s,"required":%s,"how":"%s","how_en":"%s"}' "$1" "$2" "$(b "$3")" "$4" "$(q "$5")" "$(q "$6")"
 }
 
-tools="$(tool git git $ok_git true "$how_git" "$how_git_en"),$(tool uv uv $ok_uv true "$how_uv" "$how_uv_en"),$(tool tmux tmux $ok_tmux false "$how_tmux" "$how_tmux_en"),$(tool browser "浏览器（frago 自带）" $ok_cft false "装的时候由 frago 取,不用你动手" "fetched by frago during install; nothing for you to do"),$(tool ffmpeg ffmpeg $ok_ffmpeg false "$how_ffmpeg" "$how_ffmpeg_en"),$(tool gh "GitHub CLI (gh)" $ok_gh false "$how_gh" "$how_gh_en")"
+tools="$(tool git git $ok_git true "$how_git" "$how_git_en"),$(tool uv uv $ok_uv true "$how_uv" "$how_uv_en"),$(tool tmux tmux $ok_tmux true "$how_tmux" "$how_tmux_en"),$(tool browser "浏览器（frago 自带）" $ok_cft false "装的时候由 frago 取,不用你动手" "fetched by frago during install; nothing for you to do"),$(tool ffmpeg ffmpeg $ok_ffmpeg false "$how_ffmpeg" "$how_ffmpeg_en"),$(tool gh "GitHub CLI (gh)" $ok_gh false "$how_gh" "$how_gh_en")"
 [ "$os" = linux ] && tools="$tools,$(tool bwrap bubblewrap $ok_bwrap false "$how_bwrap" "$how_bwrap_en")"
 
-json="{\"os\":\"$os\",\"running\":\"$running\",\"agents\":[$(agent claude "Claude Code" $ok_claude "$how_claude" "$how_claude_en" $manual_claude),$(agent codex codex $ok_codex "$how_codex" "$how_codex_en" $manual_codex),$(agent opencode opencode $ok_opencode "$how_opencode" "$how_opencode_en" $manual_opencode),$(agent codebuddy WorkBuddy $ok_codebuddy "$how_codebuddy" "$how_codebuddy_en" $manual_codebuddy)],\"tools\":[$tools]}"
+json="{\"os\":\"$os\",\"wsl\":\"$wsl\",\"running\":\"$running\",\"agents\":[$(agent claude "Claude Code" $ok_claude "$how_claude" "$how_claude_en" $manual_claude),$(agent codex codex $ok_codex "$how_codex" "$how_codex_en" $manual_codex),$(agent opencode opencode $ok_opencode "$how_opencode" "$how_opencode_en" $manual_opencode),$(agent codebuddy WorkBuddy $ok_codebuddy "$how_codebuddy" "$how_codebuddy_en" $manual_codebuddy)],\"tools\":[$tools]}"
 
 if [ $json_only = 1 ]; then
   printf '%s\n' "$json"
